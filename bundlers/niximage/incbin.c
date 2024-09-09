@@ -109,11 +109,14 @@ int mount_nix_store(char *exe_path) {
         if (stat(g_mounted_store, &st) < 0) {
             mkdir(g_mounted_store, 0700);
         }
+        char *store = NULL;
+        CHECK_ERRNO(0 > asprintf(&store, "%s/store", g_mounted_store), ret, -1);
 
-        if (stat(g_mounted_store, &st) < 0) {
+        if (stat(store, &st) < 0) {
             ret = incbin_main(argv, fuse_start, fuse_end - fuse_start, false,
                               true);
         }
+        free(store);
     } while (0);
     free(offset_arg);
     return ret;
