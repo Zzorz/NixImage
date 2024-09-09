@@ -30,9 +30,7 @@ stdenv.mkDerivation {
     bin_path=${drv.name}
     mkdir -p $bin_path
 
-    tar cf - $(< $closureInfo/store-paths) | tar xf -
-    
-    ${pkgs.squashfsTools}/bin/mksquashfs ./nix nix.img -no-strip -comp zstd -no-recovery -all-root
+    tar cf - $(< $closureInfo/store-paths) | ${pkgs.squashfsTools}/bin/mksquashfs - nix.img -comp zstd -no-recovery -all-root -tar -tarstyle
     
     cp ${entry} $bin_path/${entry.name}
     chmod +w $bin_path/${entry.name}
