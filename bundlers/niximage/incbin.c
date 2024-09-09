@@ -101,12 +101,13 @@ int mount_nix_store(char *exe_path) {
     size_t offset = appimage_get_elf_size(exe_path);
     char *offset_arg = NULL;
     asprintf(&offset_arg, "offset=%zu", offset);
-    char *argv[] = {"fuse", "-o", offset_arg, exe_path, g_mountpoint, NULL};
+    char *argv[] = {"fuse",       "-o",     offset_arg,      "-o",
+                    "subdir=nix", exe_path, g_mounted_store, NULL};
 
     struct stat st = {0};
     do {
-        if (stat(g_mountpoint, &st) < 0) {
-            mkdir(g_mountpoint, 0700);
+        if (stat(g_mounted_store, &st) < 0) {
+            mkdir(g_mounted_store, 0700);
         }
 
         if (stat(g_mounted_store, &st) < 0) {
@@ -166,6 +167,46 @@ int run_exe_with_bwrap(char *exe_name, int argc, char *pargv[]) {
     free(new_argv);
     return ret;
 }
+char *niximage_main(int argc, char *argv[]) {
+    char *executable = NULL;
+    int opt = 0;
+    struct stat st = {0};
+    bool extract = false;
+
+    while ((opt = getopt(argc, argv, "ec")) != -1) {
+        switch (opt) {
+        case 'e':
+            extract = true;
+            break;
+        case 'c':
+            executable = optarg;
+            break;
+        default:
+            fprintf(stderr, "Usage: %s [-e] [-c command]\n", argv[0]);
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (extract) {
+        if (0 != stat(g_extracted_store, &st)) {
+            char *cmd = NULL;
+            printf("extracting to %s\n", g_extracted_store);
+            char *extracted_store = dirname(strdup(g_extracted_store));
+            if (0 != stat(extracted_store, &st)) {
+                mkdir(extracted_store, 0700);
+            }
+            free(extracted_store);
+            asprintf(&cmd, "cp -ar %s %s", g_mounted_store, g_extracted_store);
+            system(cmd);
+            free(cmd);
+            printf("extract to %s finished\n", g_extracted_store);
+        } else {
+            printf("extracted_store: %s\n", g_extracted_store);
+            printf("%s already exist\n", g_extracted_store);
+        }
+        exit(0);
+    }
+    return executable;
+}
 
 int main(int argc, char *argv[]) {
     char *exe_path = NULL;
@@ -177,12 +218,10 @@ int main(int argc, char *argv[]) {
         CHECK_ERRNO(exe_path == NULL, ret, -1);
         exe_name = basename(argv[0]);
 
-        CHECK_ERRNO(asprintf(&g_mountpoint, "/run/user/%d/%s", getuid(),
+        CHECK_ERRNO(asprintf(&g_mounted_store, "/run/user/%d/%s", getuid(),
                              g_mountpoint_name) < 0,
                     ret, -1);
-        CHECK_ERRNO(asprintf(&g_mounted_store, "%s/nix", g_mountpoint) < 0, ret,
-                    -1);
-        CHECK_ERRNO(asprintf(&g_extracted_store, "%s/.local/niximage/%s/nix",
+        CHECK_ERRNO(asprintf(&g_extracted_store, "%s/.local/%s/",
                              getenv("HOME"), g_mountpoint_name) < 0,
                     ret, -1);
 
@@ -194,14 +233,19 @@ int main(int argc, char *argv[]) {
         }
 
         if (strcmp(exe_name, "@name@") == 0) {
-            exe_name = "bash";
+            exe_name = niximage_main(argc, argv);
         }
 
-        run_exe_with_bwrap(exe_name, argc - 1, argv + 1);
+        if (exe_name == NULL) {
+            exe_name = getenv("SHELL");
+        }
+
+        if (exe_name != NULL) {
+            run_exe_with_bwrap(exe_name, argc - 1, argv + 1);
+        }
     } while (0);
 
     free(exe_path);
-    free(g_mountpoint);
     if (g_mounted_store != g_extracted_store) {
         free(g_mounted_store);
     }
