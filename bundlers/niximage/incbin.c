@@ -221,7 +221,7 @@ int main(int argc, char *argv[]) {
         CHECK_ERRNO(asprintf(&g_mounted_store, "/run/user/%d/%s", getuid(),
                              g_mountpoint_name) < 0,
                     ret, -1);
-        CHECK_ERRNO(asprintf(&g_extracted_store, "%s/.local/%s/",
+        CHECK_ERRNO(asprintf(&g_extracted_store, "%s/.local/share/niximage/%s/",
                              getenv("HOME"), g_mountpoint_name) < 0,
                     ret, -1);
 
