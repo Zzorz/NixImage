@@ -57,10 +57,10 @@ extern const char fuse_start[];
 extern const char fuse_end[];
 extern size_t appimage_get_elf_size(char *exe_path);
 
-static char const *g_mountpoint_fmt = "/run/user/%d/%s";
 static char const *g_mountpoint_name = ((char const *)"@wrappedDrv@") + 11;
 static char *g_mountpoint = NULL;
 static char *g_mounted_store = NULL;
+static char *g_extracted_store = NULL;
 
 int incbin_main(char *argv[], char const *buf, size_t len, bool silent,
                 bool wait) {
@@ -171,18 +171,27 @@ int main(int argc, char *argv[]) {
     char *exe_path = NULL;
     char *exe_name = NULL;
     int ret = 0;
+    struct stat st = {0};
     do {
         exe_path = realpath("/proc/self/exe", NULL);
         CHECK_ERRNO(exe_path == NULL, ret, -1);
         exe_name = basename(argv[0]);
 
-        CHECK_ERRNO(asprintf(&g_mountpoint, g_mountpoint_fmt, getuid(),
+        CHECK_ERRNO(asprintf(&g_mountpoint, "/run/user/%d/%s", getuid(),
                              g_mountpoint_name) < 0,
                     ret, -1);
         CHECK_ERRNO(asprintf(&g_mounted_store, "%s/nix", g_mountpoint) < 0, ret,
                     -1);
+        CHECK_ERRNO(asprintf(&g_extracted_store, "%s/.local/niximage/%s/nix",
+                             getenv("HOME"), g_mountpoint_name) < 0,
+                    ret, -1);
 
-        mount_nix_store(exe_path);
+        if (0 == stat(g_extracted_store, &st)) {
+            free(g_mounted_store);
+            g_mounted_store = g_extracted_store;
+        } else {
+            mount_nix_store(exe_path);
+        }
 
         if (strcmp(exe_name, "@name@") == 0) {
             exe_name = "bash";
@@ -193,6 +202,9 @@ int main(int argc, char *argv[]) {
 
     free(exe_path);
     free(g_mountpoint);
-    free(g_mounted_store);
+    if (g_mounted_store != g_extracted_store) {
+        free(g_mounted_store);
+    }
+    free(g_extracted_store);
     return ret;
 }
