@@ -8,7 +8,7 @@ let
     configurePhase = ''
       substituteAllInPlace incbin.c
       cp ${pkgs.pkgsStatic.bubblewrap}/bin/bwrap .
-      cp ${pkgs.pkgsStatic.squashfuse}/bin/squashfuse fuse
+      cp ${pkgs.pkgsStatic.squashfuse}/bin/squashfuse_ll fuse
       chmod +w bwrap fuse
       strip -s bwrap fuse
     '';
