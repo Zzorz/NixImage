@@ -1,16 +1,16 @@
-{pkgs,...}:
-let 
-py = pkgs.python3.withPackages (ps: with ps; [
-  pwntools
-  r2pipe
-]);
+{ pkgs, ... }:
+let
+  py = pkgs.python3.withPackages (ps: with ps; [
+    pwntools
+    r2pipe
+  ]);
 in
-pkgs.buildFHSEnv {
-  name = "test-fhs-env";
-  targetPkgs = pkgs: (with pkgs; [
-    tmux
-    neovim
+pkgs.buildEnv {
+  name = "pwn-env";
+  paths = with pkgs; [
+    vim
     radare2
     py
-  ]);
+  ];
+  pathsToLink = [ "/bin" ];
 }

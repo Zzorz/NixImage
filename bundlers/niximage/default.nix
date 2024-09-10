@@ -1,7 +1,7 @@
 { pkgs, stdenv, writeScriptBin, ... }: drv:
 let
   entry = stdenv.mkDerivation {
-    name = drv.name+".niximage";
+    name = drv.name + ".niximage";
     src = ./.;
     buildInputs = [ pkgs.musl ];
     wrappedDrv = drv;
@@ -22,11 +22,11 @@ let
   };
 in
 stdenv.mkDerivation {
-  name = drv.name+".tar.gz";
+  name = drv.name + ".tar.gz";
   closureInfo = pkgs.closureInfo { rootPaths = [ drv ]; };
   bundledDrv = drv;
   src = ./.;
-  buildPhase= ''
+  buildPhase = ''
     bin_path=${drv.name}
     mkdir -p $bin_path
 
