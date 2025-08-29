@@ -30,7 +30,18 @@ stdenv.mkDerivation {
     bin_path=${drv.name}
     mkdir -p $bin_path
 
-    tar cf - $(< $closureInfo/store-paths) | ${pkgs.squashfsTools}/bin/mksquashfs - nix.img -comp zstd -no-recovery -all-root -tar -tarstyle
+
+    tar -cf - \
+      --exclude='*.a' \
+      --exclude='*.la' \
+      --exclude='*.o' \
+      --exclude='lib*san*' \
+      --exclude='gconv' \
+      --exclude='doc' \
+      --exclude='man' \
+      --exclude='include' \
+      --exclude='i18n' \
+      $(< $closureInfo/store-paths) | ${pkgs.squashfsTools}/bin/mksquashfs - nix.img -comp lz4 -no-recovery -all-root -tar -tarstyle
     
     cp ${entry} $bin_path/${entry.name}
     chmod +w $bin_path/${entry.name}

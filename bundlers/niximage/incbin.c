@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "stdlib.h"
+#include <dirent.h>
 #include <errno.h>
 #include <libgen.h>
 #include <linux/memfd.h>
@@ -121,55 +122,81 @@ int mount_nix_store(char *exe_path) {
     free(offset_arg);
     return ret;
 }
-
 int run_exe_with_bwrap(char *exe_name, int argc, char *pargv[]) {
     int ret = 0;
     char *new_env = NULL;
+    char *store = NULL;
+    char *g_mounted_root = NULL;
+    struct stat st = {0};
     asprintf(&new_env, "@wrappedDrv@/bin/:%s", getenv("PATH"));
-    char *argv[] = {"bwrap",
-                    "--bind",
-                    "/",
-                    "/",
-                    "--ro-bind",
-                    g_mounted_store,
-                    "/nix",
-                    "--dev-bind",
-                    "/dev/null",
-                    "/dev/null",
-                    "--dev-bind",
-                    "/dev/zero",
-                    "/dev/zero",
-                    "--dev-bind",
-                    "/dev/random",
-                    "/dev/random",
-                    "--dev-bind",
-                    "/dev/urandom",
-                    "/dev/urandom",
-                    "--dev-bind",
-                    "/dev/tty",
-                    "/dev/tty",
-                    "--unsetenv",
-                    "PATH",
-                    "--setenv",
-                    "PATH",
-                    new_env,
-                    exe_name,
-                    NULL};
-    char **new_argv = malloc(argc * sizeof(void *) + sizeof(argv));
+    asprintf(&g_mounted_root, "%s-root", g_mounted_store);
+    if (stat(g_mounted_root, &st) < 0) {
+        mkdir(g_mounted_root, 0700);
+    }
 
-    memcpy(new_argv, argv, sizeof(argv));
+    char **argv = malloc(4096 * sizeof(char *));
+    int idx = 0;
+    argv[idx++] = "bwrap";
+    argv[idx++] = "--die-with-parent";
+    argv[idx++] = "--bind";
+    argv[idx++] = g_mounted_root;
+    argv[idx++] = "/";
+    argv[idx++] = "--bind";
+    argv[idx++] = g_mounted_store;
+    argv[idx++] = "/nix";
+
+    DIR *root = opendir("/");
+    if (root == NULL) {
+        fprintf(stderr, "Failed to open root directory: %s\n", strerror(errno));
+        return -1;
+    }
+    struct dirent *entry = NULL;
+    int free_index_list[4096] = {0};
+    while ((entry = readdir(root)) != NULL) {
+        if (entry->d_type == DT_DIR || entry->d_type == DT_LNK) {
+            char *path = NULL;
+            if (strcmp(entry->d_name, ".") == 0 ||
+                strcmp(entry->d_name, "..") == 0)
+                continue;
+            if (strcmp(entry->d_name, "nix") == 0)
+                continue;
+            if (strcmp(entry->d_name, "dev") == 0)
+                continue;
+            asprintf(&path, "/%s", entry->d_name);
+            argv[idx++] = "--bind";
+            free_index_list[idx] = 1;
+            argv[idx++] = path;
+            argv[idx++] = path;
+        }
+    }
+    closedir(root);
+
+    argv[idx++] = "--dev";
+    argv[idx++] = "/dev/";
+    argv[idx++] = "--unsetenv";
+    argv[idx++] = "PATH";
+    argv[idx++] = "--setenv";
+    argv[idx++] = "PATH";
+    argv[idx++] = new_env;
+    argv[idx++] = exe_name;
 
     for (int i = 0; i < argc; i++) {
-        new_argv[sizeof(argv) / sizeof(void *) + i - 1] = pargv[i];
+        argv[idx++] = pargv[i];
     }
-    new_argv[sizeof(argv) / sizeof(void *) + argc - 1] = NULL;
+    argv[idx++] = NULL;
 
-    ret = incbin_main(new_argv, bwrap_start, bwrap_end - bwrap_start, false,
-                      true);
+    ret = incbin_main(argv, bwrap_start, bwrap_end - bwrap_start, false, true);
     free(new_env);
-    free(new_argv);
+    free(g_mounted_root);
+    for (int i = 0; i < 4096; i++) {
+        if (free_index_list[i] == 1) {
+            free(argv[i]);
+        }
+    }
+    free(argv);
     return ret;
 }
+
 char *niximage_main(int argc, char *argv[]) {
     char *executable = NULL;
     int opt = 0;
