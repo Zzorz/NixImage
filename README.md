@@ -5,7 +5,7 @@ Run nix packages anywhere, inspired by appimage.
 # Quick start
 
 1. You shuold have a working nix installed with `experimental-features = nix-command flakes`
-2. Try with `nix bundle --bundler 'github:Zzorz/NixImage#niximage'  'nixpkgs#hello'`
+2. Try with `nix bundle --bundler 'github:RazYang/NixImage#niximage'  'nixpkgs#hello'`
 3. extract `hello-$version.tar.gz` in current work directory and run `hello-$version/hello`
 4. feel free to copy `hello-$version.tar.gz` to any machine
 
